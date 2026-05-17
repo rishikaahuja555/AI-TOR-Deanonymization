@@ -1,4 +1,24 @@
 import { useState, useEffect } from 'react';
+import { supabase } from "./supabaseClient"
+
+export default function App() {
+
+  useEffect(() => {
+    test()
+  }, [])
+
+  async function test() {
+    const { data, error } = await supabase
+      .from("tor_entities")
+      .select("*")
+      .limit(5)
+
+    console.log("DATA:", data)
+    console.log("ERROR:", error)
+  }
+
+  return <h1>Testing Supabase</h1>
+}
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Layout from './components/Layout';
