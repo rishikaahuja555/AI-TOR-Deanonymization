@@ -42,6 +42,15 @@ const THREAT_HEATMAP_DATA = Array.from({ length: 7 }, (_, dayIdx) => {
   }));
 }).flat();
 
+const SEED_ALERTS: Omit<ActivityAlert, 'id'>[] = [
+  { type: 'onion_detected', severity: 'critical', title: 'New Onion Domain Detected', description: 'xmkfonixbl7e3rkh.onion registered with ransomware infrastructure patterns', timestamp: new Date(Date.now() - 30000), metadata: { domain: 'xmkfonixbl7e3rkh.onion' } },
+  { type: 'wallet_found', severity: 'high', title: 'Crypto Wallet Activity Detected', description: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e - 15 BTC transferred', timestamp: new Date(Date.now() - 120000), metadata: { wallet: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e', amount: '15 BTC' } },
+  { type: 'threat_spike', severity: 'critical', title: 'Anomalous Threat Level Spike', description: '450% increase in darknet marketplace activity in last 2 hours', timestamp: new Date(Date.now() - 300000), metadata: { increase: '450%', period: '2h' } },
+  { type: 'exploit_detected', severity: 'high', title: 'CVE-2024-1234 Exploit In-The-Wild', description: 'Active exploitation detected across 12 victim organizations', timestamp: new Date(Date.now() - 600000), metadata: { cve: 'CVE-2024-1234', victims: 12 } },
+  { type: 'breach_intel', severity: 'critical', title: 'Major Breach Intelligence Published', description: '50M credentials dataset from Fortune 500 company leaked on underground forum', timestamp: new Date(Date.now() - 900000), metadata: { records: '50M', source: 'Fortune 500' } },
+  { type: 'malware_signature', severity: 'medium', title: 'New Malware Family Signature Added', description: 'Emotet variant detected in 3 new campaigns', timestamp: new Date(Date.now() - 1200000), metadata: { malware: 'Emotet', campaigns: 3 } },
+];
+
 export default function Dashboard({ onNavigate }: Props) {
   const { user } = useAuth();
   const [stats, setStats] = useState({ datasets: 0, entities: 0, reports: 0, threats: 0 });
@@ -50,16 +59,18 @@ export default function Dashboard({ onNavigate }: Props) {
   const [loading, setLoading] = useState(true);
   const [aiSummary, setAISummary] = useState('');
   const [suspiciousEntries, setSuspiciousEntries] = useState(0);
+  const [threatAlerts, setThreatAlerts] = useState<ActivityAlert[]>([]);
 
   useEffect(() => {
     if (!user) return;
     async function load() {
-      const [{ count: dc }, { count: ec }, { count: rc }, { data: ents }, { data: logs }] = await Promise.all([
+      const [{ count: dc }, { count: ec }, { count: rc }, { data: ents }, { data: logs }, { data: alerts }] = await Promise.all([
         supabase.from('datasets').select('*', { count: 'exact', head: true }).eq('user_id', user!.id),
         supabase.from('entities').select('*', { count: 'exact', head: true }).eq('user_id', user!.id),
         supabase.from('reports').select('*', { count: 'exact', head: true }).eq('user_id', user!.id),
         supabase.from('entities').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(6),
         supabase.from('activity_logs').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
+        supabase.from('threat_alerts').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(8),
       ]);
 
       const threats = (ents ?? []).filter((e: Entity) => e.threat_score >= 70).length;
@@ -69,6 +80,31 @@ export default function Dashboard({ onNavigate }: Props) {
       const summary = generateIntelligenceSummary(analysis, ents ?? []);
       setAISummary(summary);
       setSuspiciousEntries(analysis.classification === 'critical' ? threats : Math.floor(threats * 0.6));
+
+      // Load or seed threat alerts
+      if (alerts && alerts.length > 0) {
+        setThreatAlerts(alerts.map((a: any) => ({
+          id: a.id,
+          type: a.type,
+          severity: a.severity,
+          title: a.title,
+          description: a.description,
+          timestamp: new Date(a.created_at),
+          metadata: a.metadata,
+        })));
+      } else {
+        // Seed sample alerts into Supabase
+        const seedData = SEED_ALERTS.map(a => ({
+          user_id: user!.id,
+          type: a.type,
+          severity: a.severity,
+          title: a.title,
+          description: a.description,
+          metadata: a.metadata || {},
+        }));
+        await supabase.from('threat_alerts').insert(seedData);
+        setThreatAlerts(SEED_ALERTS.map((a, i) => ({ ...a, id: `seed-${i}` })));
+      }
 
       setStats({ datasets: dc ?? 0, entities: ec ?? 0, reports: rc ?? 0, threats });
       setRecentEntities(ents ?? []);
@@ -224,7 +260,7 @@ export default function Dashboard({ onNavigate }: Props) {
           </div>
           <span className="text-[10px] font-mono text-green-400 animate-pulse">● LIVE</span>
         </div>
-        <LiveActivityFeed maxItems={6} />
+        <LiveActivityFeed alerts={threatAlerts} maxItems={6} />
       </div>
 
       {/* Old Activity section - now for logging */}

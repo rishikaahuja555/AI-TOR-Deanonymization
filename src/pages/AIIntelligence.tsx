@@ -1,5 +1,7 @@
-import { useState, useRef } from 'react';
-import { Brain, Zap, AlertTriangle, Globe, Lock, Users, FileText, Copy, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Brain, Zap, AlertTriangle, Globe, Lock, Users, FileText, Copy, Download, History } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import {
   classifyEntry,
   predictThreatScore,
@@ -16,16 +18,40 @@ import {
 } from '../lib/cybersecurityTools';
 import ThreatBadge from '../components/ThreatBadge';
 
-type AnalysisTab = 'classification' | 'nlp' | 'entities' | 'onion' | 'wallets' | 'actors' | 'iocs';
+type AnalysisTab = 'classification' | 'nlp' | 'entities' | 'onion' | 'wallets' | 'actors' | 'iocs' | 'history';
+
+interface SavedAnalysis {
+  id: string;
+  input_text: string;
+  classification: string;
+  threat_score: number;
+  summary: string;
+  created_at: string;
+}
 
 export default function AIIntelligence() {
+  const { user } = useAuth();
   const [tab, setTab] = useState<AnalysisTab>('classification');
   const [inputText, setInputText] = useState('');
   const [results, setResults] = useState<any>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('ai_analyses')
+      .select('id, input_text, classification, threat_score, summary, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10)
+      .then(({ data }) => {
+        if (data) setSavedAnalyses(data as SavedAnalysis[]);
+      });
+  }, [user]);
 
   async function runAnalysis() {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !user) return;
     setAnalyzing(true);
 
     const classification = classifyEntry(inputText);
@@ -44,16 +70,48 @@ export default function AIIntelligence() {
     const actorMatches = Array.from(inputText.matchAll(/(?:group|actor|operator)[\s:]+([A-Za-z0-9_\-\s]{3,30})/gi));
     const profiles = actorMatches.map(m => profileThreatActor(m[1], [], []));
 
-    setResults({
+    const iocResults = iocs.map(i => ({ ...i, risk: calculateIOCRisk(i) }));
+    const summary = generateIntelligenceSummary(classification, iocs);
+
+    const analysisResult = {
       classification,
       nlpAnalysis,
       entities,
       onionUrls,
       clusters,
       profiles,
-      iocs: iocs.map(i => ({ ...i, risk: calculateIOCRisk(i) })),
-      summary: generateIntelligenceSummary(classification, iocs),
+      iocs: iocResults,
+      summary,
+    };
+
+    setResults(analysisResult);
+
+    // Save to Supabase
+    await supabase.from('ai_analyses').insert({
+      user_id: user.id,
+      input_text: inputText,
+      classification: classification.classification,
+      confidence: classification.confidence,
+      threat_score: classification.predictedThreatScore,
+      nlp_sentiment: nlpAnalysis.sentiment,
+      nlp_topics: nlpAnalysis.topicsTags,
+      nlp_key_indicators: nlpAnalysis.keyIndicators,
+      named_entities: entities,
+      iocs: iocResults,
+      onion_urls: onionUrls,
+      wallet_clusters: clusters,
+      threat_actors: profiles,
+      summary,
     });
+
+    // Refresh saved analyses
+    const { data } = await supabase
+      .from('ai_analyses')
+      .select('id, input_text, classification, threat_score, summary, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (data) setSavedAnalyses(data as SavedAnalysis[]);
 
     setAnalyzing(false);
   }
@@ -117,6 +175,7 @@ export default function AIIntelligence() {
                 ['wallets', 'Wallets', Lock],
                 ['actors', 'Threat Actors', Users],
                 ['iocs', 'IOCs', FileText],
+                ['history', 'History', History],
               ] as const
             ).map(([id, label, Icon]) => (
               <button
@@ -346,6 +405,36 @@ export default function AIIntelligence() {
                         <p className="text-[9px] font-mono text-gray-600">{ioc.type} • {ioc.context}</p>
                       </div>
                       <ThreatBadge score={ioc.risk} />
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {tab === 'history' && (
+              <div className="space-y-2">
+                {savedAnalyses.length === 0 ? (
+                  <p className="text-xs text-gray-500 font-mono">No saved analyses yet. Run an analysis to see it here.</p>
+                ) : (
+                  savedAnalyses.map((a) => (
+                    <div key={a.id} className="p-3 bg-gray-800/40 rounded border border-gray-700/40 hover:border-cyan-500/30 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setInputText(a.input_text);
+                        setTab('classification');
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                          a.classification === 'critical' ? 'bg-red-500/20 text-red-400' :
+                          a.classification === 'suspicious' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-green-500/20 text-green-400'
+                        }`}>
+                          {a.classification.toUpperCase()}
+                        </span>
+                        <span className="text-[9px] font-mono text-gray-600">{new Date(a.created_at).toLocaleString()}</span>
+                      </div>
+                      <p className="text-[10px] font-mono text-gray-400 truncate">{a.input_text}</p>
+                      {a.summary && <p className="text-[9px] font-mono text-gray-600 mt-1 line-clamp-2">{a.summary}</p>}
                     </div>
                   ))
                 )}
