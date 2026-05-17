@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Search, AlertTriangle, Database, FileText, TrendingUp, Activity, Shield, Zap } from 'lucide-react';
+import { Search, AlertTriangle, Database, FileText, TrendingUp, Activity, Shield, Zap, Brain, Radar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import StatCard from '../components/StatCard';
 import ThreatBadge from '../components/ThreatBadge';
 import EntityTypeBadge from '../components/EntityTypeBadge';
+import ThreatLineChart from '../components/ThreatLineChart';
+import ThreatHeatmap from '../components/ThreatHeatmap';
+import LiveActivityFeed, { type ActivityAlert } from '../components/LiveActivityFeed';
+import { classifyEntry, generateIntelligenceSummary } from '../lib/aiAnalysis';
 import type { Page } from '../App';
 import type { Entity, ActivityLog } from '../lib/types';
 import { SAMPLE_ENTITIES } from '../lib/sampleData';
@@ -19,12 +23,33 @@ const THREAT_CATEGORIES = [
   { label: 'Usernames', count: 18, pct: 64, color: 'bg-cyan-500' },
 ];
 
+const THREAT_TIMELINE_DATA = [
+  { date: 'Mar 10', critical: 3, high: 8, medium: 12, low: 15 },
+  { date: 'Mar 11', critical: 5, high: 10, medium: 9, low: 18 },
+  { date: 'Mar 12', critical: 2, high: 6, medium: 14, low: 22 },
+  { date: 'Mar 13', critical: 8, high: 15, medium: 7, low: 12 },
+  { date: 'Mar 14', critical: 6, high: 12, medium: 11, low: 19 },
+  { date: 'Mar 15', critical: 9, high: 18, medium: 8, low: 14 },
+  { date: 'Mar 16', critical: 4, high: 9, medium: 13, low: 20 },
+];
+
+const THREAT_HEATMAP_DATA = Array.from({ length: 7 }, (_, dayIdx) => {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return Array.from({ length: 24 }, (_, hour) => ({
+    day: days[dayIdx],
+    hour,
+    value: Math.floor(Math.random() * 15),
+  }));
+}).flat();
+
 export default function Dashboard({ onNavigate }: Props) {
   const { user } = useAuth();
   const [stats, setStats] = useState({ datasets: 0, entities: 0, reports: 0, threats: 0 });
   const [recentEntities, setRecentEntities] = useState<Entity[]>([]);
   const [recentLogs, setRecentLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aiSummary, setAISummary] = useState('');
+  const [suspiciousEntries, setSuspiciousEntries] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -38,6 +63,13 @@ export default function Dashboard({ onNavigate }: Props) {
       ]);
 
       const threats = (ents ?? []).filter((e: Entity) => e.threat_score >= 70).length;
+
+      // AI Analysis
+      const analysis = classifyEntry(JSON.stringify(ents ?? []));
+      const summary = generateIntelligenceSummary(analysis, ents ?? []);
+      setAISummary(summary);
+      setSuspiciousEntries(analysis.classification === 'critical' ? threats : Math.floor(threats * 0.6));
+
       setStats({ datasets: dc ?? 0, entities: ec ?? 0, reports: rc ?? 0, threats });
       setRecentEntities(ents ?? []);
       setRecentLogs(logs ?? []);
@@ -135,11 +167,71 @@ export default function Dashboard({ onNavigate }: Props) {
         </div>
       </div>
 
-      {/* Activity feed */}
+      {/* AI Intelligence Summary */}
+      <div className="bg-gradient-to-r from-blue-500/10 via-cyan-500/10 to-teal-500/10 border border-cyan-500/20 rounded-xl p-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0">
+            <Brain size={16} className="text-cyan-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-cyan-400 font-mono tracking-wide">AI INTELLIGENCE SUMMARY</h3>
+            <p className="text-sm text-gray-300 mt-2 font-mono leading-relaxed">{aiSummary}</p>
+            {suspiciousEntries > 0 && (
+              <div className="mt-3 flex items-center gap-2 text-xs font-mono">
+                <span className="px-2 py-1 rounded bg-red-500/20 border border-red-500/30 text-red-400">
+                  {suspiciousEntries} SUSPICIOUS ENTRIES DETECTED
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Threat Timeline with Line Chart */}
+      <div className="bg-gray-900 border border-gray-800/60 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={14} className="text-cyan-400" />
+            <h3 className="text-sm font-bold text-gray-200 font-mono">THREAT TREND ANALYSIS (LINE CHART)</h3>
+          </div>
+          <span className="text-[10px] font-mono text-gray-500">Last 7 Days</span>
+        </div>
+        <div className="bg-gray-950/50 rounded-lg p-4 overflow-x-auto">
+          <ThreatLineChart data={THREAT_TIMELINE_DATA} />
+        </div>
+      </div>
+
+      {/* Threat Activity Heatmap */}
+      <div className="bg-gray-900 border border-gray-800/60 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Radar size={14} className="text-cyan-400" />
+            <h3 className="text-sm font-bold text-gray-200 font-mono">THREAT ACTIVITY HEATMAP</h3>
+          </div>
+          <span className="text-[10px] font-mono text-gray-500">Activity by Hour & Day</span>
+        </div>
+        <div className="bg-gray-950/50 rounded-lg overflow-x-auto">
+          <ThreatHeatmap data={THREAT_HEATMAP_DATA} />
+        </div>
+      </div>
+
+      {/* Live Activity Feed */}
+      <div className="bg-gray-900 border border-gray-800/60 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Zap size={14} className="text-cyan-400" />
+            <h3 className="text-sm font-bold text-gray-200 font-mono">LIVE THREAT ALERTS</h3>
+          </div>
+          <span className="text-[10px] font-mono text-green-400 animate-pulse">● LIVE</span>
+        </div>
+        <LiveActivityFeed maxItems={6} />
+      </div>
+
+      {/* Old Activity section - now for logging */}
       <div className="bg-gray-900 border border-gray-800/60 rounded-xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Activity size={14} className="text-cyan-400" />
-          <h3 className="text-sm font-bold text-gray-200 font-mono">ACTIVITY FEED</h3>
+          <h3 className="text-sm font-bold text-gray-200 font-mono">ANALYSIS ACTIVITY LOG</h3>
         </div>
         {recentLogs.length === 0 ? (
           <div className="space-y-2">

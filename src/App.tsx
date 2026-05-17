@@ -9,7 +9,7 @@ import Reports from './pages/Reports';
 import ActivityLogs from './pages/ActivityLogs';
 import Settings from './pages/Settings';
 
-export type Page = 'dashboard' | 'entity-analysis' | 'threat-intelligence' | 'reports' | 'activity-logs' | 'settings';
+export type Page = 'dashboard' | 'entity-analysis' | 'threat-intelligence' | 'reports' | 'activity-logs' | 'settings' | 'ai-intelligence';
 
 function AppContent() {
   const { user, loading } = useAuth();
