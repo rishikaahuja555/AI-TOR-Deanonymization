@@ -2,7 +2,7 @@ import { useState, ReactNode } from 'react';
 import {
   Shield, LayoutDashboard, Search, AlertTriangle,
   FileText, Activity, Settings, LogOut, Menu, X,
-  ChevronRight, Cpu
+  ChevronRight, Cpu, Brain
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import type { Page } from '../App';
@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'entity-analysis', label: 'Entity Analysis', icon: Search },
   { id: 'threat-intelligence', label: 'Threat Intel', icon: AlertTriangle },
+  { id: 'ai-intelligence', label: 'AI Intel', icon: Brain },
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'activity-logs', label: 'Activity Logs', icon: Activity },
   { id: 'settings', label: 'Settings', icon: Settings },

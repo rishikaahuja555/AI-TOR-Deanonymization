@@ -5,11 +5,12 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import EntityAnalysis from './pages/EntityAnalysis';
 import ThreatIntelligence from './pages/ThreatIntelligence';
+import AIIntelligence from './pages/AIIntelligence';
 import Reports from './pages/Reports';
 import ActivityLogs from './pages/ActivityLogs';
 import Settings from './pages/Settings';
 
-export type Page = 'dashboard' | 'entity-analysis' | 'threat-intelligence' | 'reports' | 'activity-logs' | 'settings' | 'ai-intelligence';
+export type Page = 'dashboard' | 'entity-analysis' | 'threat-intelligence' | 'ai-intelligence' | 'reports' | 'activity-logs' | 'settings';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -37,6 +38,7 @@ function AppContent() {
       {currentPage === 'dashboard' && <Dashboard onNavigate={setCurrentPage} />}
       {currentPage === 'entity-analysis' && <EntityAnalysis />}
       {currentPage === 'threat-intelligence' && <ThreatIntelligence />}
+      {currentPage === 'ai-intelligence' && <AIIntelligence />}
       {currentPage === 'reports' && <Reports />}
       {currentPage === 'activity-logs' && <ActivityLogs />}
       {currentPage === 'settings' && <Settings />}
