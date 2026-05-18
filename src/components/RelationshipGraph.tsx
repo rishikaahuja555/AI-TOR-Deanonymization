@@ -91,7 +91,7 @@ export default function RelationshipGraph({ nodes, edges }: Props) {
               key={node.id}
               transform={`translate(${node.x},${node.y})`}
               className="cursor-pointer"
-              onMouseEnter={e => setTooltip({ x: node.x!, y: node.y!, node })}
+              onMouseEnter={() => setTooltip({ x: node.x!, y: node.y!, node })}
               onMouseLeave={() => setTooltip(null)}
             >
               <circle r={r + 6} fill={`url(#glow-${node.type})`} />

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Activity, Search, Filter, Trash2, RefreshCw } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { useActivityLogs } from '../lib/hooks';
 import type { ActivityLog } from '../lib/types';
 
 const SAMPLE_LOGS: ActivityLog[] = [
@@ -19,9 +20,12 @@ const ACTION_COLORS: Record<string, string> = {
   'Entity analysis complete': 'text-cyan-400',
   'Dataset uploaded': 'text-blue-400',
   'Report generated': 'text-green-400',
-  'Relationship graph built': 'text-purple-400',
+  'Relationship graph built': 'text-teal-400',
   'User login': 'text-gray-400',
   'Export entities CSV': 'text-yellow-400',
+  'AI analysis complete': 'text-cyan-400',
+  'Threat alert created': 'text-red-400',
+  'TOR entity saved': 'text-orange-400',
 };
 
 function timeAgo(ts: string) {
@@ -36,20 +40,8 @@ function timeAgo(ts: string) {
 
 export default function ActivityLogs() {
   const { user } = useAuth();
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { logs, loading, refetch } = useActivityLogs(user?.id);
   const [search, setSearch] = useState('');
-
-  async function loadLogs() {
-    if (!user) return;
-    setLoading(true);
-    const { data } = await supabase.from('activity_logs').select('*')
-      .eq('user_id', user.id).order('created_at', { ascending: false }).limit(100);
-    setLogs(data ?? []);
-    setLoading(false);
-  }
-
-  useEffect(() => { loadLogs(); }, [user]);
 
   const display = logs.length > 0 ? logs : SAMPLE_LOGS;
   const filtered = display.filter(l =>
@@ -64,8 +56,9 @@ export default function ActivityLogs() {
           <p className="text-xs text-gray-500 font-mono mt-0.5">{filtered.length} EVENTS RECORDED</p>
         </div>
         <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-green-400 animate-pulse">● LIVE</span>
           <button
-            onClick={loadLogs}
+            onClick={refetch}
             className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-400 px-3 py-1.5 rounded-lg text-xs font-mono transition-all"
           >
             <RefreshCw size={11} />
@@ -127,7 +120,7 @@ export default function ActivityLogs() {
                     <button
                       onClick={async () => {
                         await supabase.from('activity_logs').delete().eq('id', log.id);
-                        setLogs(prev => prev.filter(l => l.id !== log.id));
+                        refetch();
                       }}
                       className="flex-shrink-0 text-gray-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                     >

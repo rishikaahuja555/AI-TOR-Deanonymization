@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Brain, Zap, AlertTriangle, Globe, Lock, Users, FileText, Copy, Download, History } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Brain, AlertTriangle, Globe, Lock, Users, FileText, Copy, Download, History } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import {
   classifyEntry,
-  predictThreatScore,
   analyzeNLPContent,
   extractNamedEntities,
   generateIntelligenceSummary,
@@ -45,8 +44,8 @@ export default function AIIntelligence() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(10)
-      .then(({ data }) => {
-        if (data) setSavedAnalyses(data as SavedAnalysis[]);
+      .then(({ data }: { data: SavedAnalysis[] | null }) => {
+        if (data) setSavedAnalyses(data);
       });
   }, [user]);
 
@@ -111,7 +110,7 @@ export default function AIIntelligence() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(10);
-    if (data) setSavedAnalyses(data as SavedAnalysis[]);
+    if (data) setSavedAnalyses(data);
 
     setAnalyzing(false);
   }

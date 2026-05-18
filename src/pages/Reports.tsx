@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FileText, Plus, Download, Trash2, AlertTriangle, Shield, Calendar } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { useReports, logActivity } from '../lib/hooks';
 import ThreatBadge from '../components/ThreatBadge';
 import type { Report } from '../lib/types';
 
@@ -81,17 +82,9 @@ function exportReportPDF(report: Report) {
 
 export default function Reports() {
   const { user } = useAuth();
-  const [reports, setReports] = useState<Report[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { reports, loading, refetch } = useReports(user?.id);
   const [generating, setGenerating] = useState(false);
   const [selected, setSelected] = useState<Report | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    supabase.from('reports').select('*').eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => { setReports(data ?? []); setLoading(false); });
-  }, [user]);
 
   const display = reports.length > 0 ? reports : SAMPLE_REPORTS;
 
@@ -119,10 +112,8 @@ export default function Reports() {
 
     const { data: saved } = await supabase.from('reports').insert(report).select().maybeSingle();
     if (saved) {
-      setReports(prev => [saved as Report, ...prev]);
-      await supabase.from('activity_logs').insert({
-        user_id: user.id, action: 'Report generated', details: report.title,
-      });
+      await logActivity(user.id, 'Report generated', report.title);
+      refetch();
     }
     setGenerating(false);
   }
@@ -189,8 +180,8 @@ export default function Reports() {
                     onClick={async () => {
                       if (!user || selected.user_id === 'demo') return;
                       await supabase.from('reports').delete().eq('id', selected.id);
-                      setReports(prev => prev.filter(r => r.id !== selected.id));
                       setSelected(null);
+                      refetch();
                     }}
                     className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-red-400 px-3 py-1.5 rounded-lg text-xs font-mono transition-all"
                   >

@@ -27,7 +27,6 @@ export default function ThreatHeatmap({ data }: Props) {
   };
 
   const cellSize = 20;
-  const labelWidth = 30;
   const topPadding = 30;
 
   return (

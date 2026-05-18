@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Settings as SettingsIcon, Shield, Bell, Database, User, Save, Eye, EyeOff, Trash2, AlertTriangle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 
 type Section = 'profile' | 'security' | 'notifications' | 'data';
@@ -50,6 +50,9 @@ export default function Settings() {
       supabase.from('datasets').delete().eq('user_id', user.id),
       supabase.from('reports').delete().eq('user_id', user.id),
       supabase.from('activity_logs').delete().eq('user_id', user.id),
+      supabase.from('threat_alerts').delete().eq('user_id', user.id),
+      supabase.from('tor_entities').delete().eq('user_id', user.id),
+      supabase.from('ai_analyses').delete().eq('user_id', user.id),
     ]);
     setShowConfirmDelete(false);
   }

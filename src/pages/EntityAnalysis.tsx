@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { Upload, Cpu, FileText, Search, Trash2, Download, Eye } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { extractEntities, buildRelationships } from '../lib/entityExtractor';
+import { logActivity } from '../lib/hooks';
 import EntityTypeBadge from '../components/EntityTypeBadge';
 import ThreatBadge from '../components/ThreatBadge';
 import RelationshipGraph from '../components/RelationshipGraph';
@@ -78,6 +79,23 @@ export default function EntityAnalysis() {
       const relInserts = rels.map(r => ({ ...r, user_id: user.id }));
       await supabase.from('relationships').insert(relInserts);
 
+      // Also save high-threat entities to tor_entities for the threat monitor
+      const torInserts = savedEntities
+        .filter((e: Entity) => e.threat_score >= 40)
+        .map((e: Entity) => ({
+          user_id: user.id,
+          type: e.type === 'url' ? 'onion_url' : e.type === 'wallet' ? 'crypto_wallet' : e.type,
+          value: e.value,
+          threat_score: e.threat_score,
+          confidence: e.confidence,
+          context: e.context || '',
+          source: 'entity_analysis',
+          metadata: { dataset_id: ds.id },
+        }));
+      if (torInserts.length > 0) {
+        await supabase.from('tor_entities').insert(torInserts);
+      }
+
       await supabase.from('datasets').update({ status: 'complete' }).eq('id', ds.id);
 
       const nodes: GraphNode[] = savedEntities.map((e: Entity) => ({
@@ -92,11 +110,7 @@ export default function EntityAnalysis() {
       setGraphNodes(nodes);
       setGraphEdges(edges);
 
-      await supabase.from('activity_logs').insert({
-        user_id: user.id,
-        action: 'Entity analysis complete',
-        details: `${savedEntities.length} entities extracted from ${fileName || 'dataset'}`,
-      });
+      await logActivity(user.id, 'Entity analysis complete', `${savedEntities.length} entities extracted from ${fileName || 'dataset'}`);
     }
 
     setStatus('');

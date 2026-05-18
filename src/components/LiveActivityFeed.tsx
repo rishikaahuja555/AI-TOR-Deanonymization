@@ -117,7 +117,6 @@ export default function LiveActivityFeed({ alerts = MOCK_ALERTS, maxItems = 8 }:
         displayAlerts.map((alert, idx) => {
           const severity = SEVERITY_CONFIG[alert.severity];
           const AlertIcon = TYPE_ICONS[alert.type];
-          const severityIcon = severity.icon;
 
           return (
             <div
